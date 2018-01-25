@@ -225,4 +225,5 @@ void ImageSet::Upload(Sprite *sprite)
 	sprite->AddFrames(buffer[0], false);
 	sprite->AddFrames(buffer[1], true);
 	sprite->AddMasks(masks);
+	sprite->GenerateMaskTexture();
 }

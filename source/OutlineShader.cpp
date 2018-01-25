@@ -65,6 +65,7 @@ void OutlineShader::Init()
 	// aliasing effects between the two.
 	static const char *fragmentCode =
 		"uniform sampler2DArray tex;\n"
+		"uniform sampler2DArray mask;\n"
 		"uniform float frame = 0;\n"
 		"uniform float frameCount = 0;\n"
 		"uniform vec4 color = vec4(1, 1, 1, 1);\n"
@@ -75,6 +76,10 @@ void OutlineShader::Init()
 		
 		"out vec4 finalColor;\n"
 		
+		"float linearstep(float edge0, float edge1, float x) {\n"
+		"  return clamp((x - edge0) / (edge1 - edge0), 0., 1.);\n"
+		"}\n"
+
 		"float Sobel(float layer) {\n"
 		"  float sum = 0;\n"
 		"  for(int dy = -1; dy <= 1; ++dy)\n"
@@ -102,8 +107,17 @@ void OutlineShader::Init()
 		"  float first = floor(frame);\n"
 		"  float second = mod(ceil(frame), frameCount);\n"
 		"  float fade = frame - first;\n"
-		"  float sum = mix(Sobel(first), Sobel(second), fade);\n"
-		"  finalColor = color * sqrt(sum / 180);\n"
+		"  float dist = mix(\n"
+		"    texture(mask, vec3(fragTexCoord, first)).r,\n"
+		"    texture(mask, vec3(fragTexCoord, second)).r,\n"
+		"    fade) / length(off);\n"
+		"  if(dist >= 0) {\n"
+		"    finalColor = color * linearstep(-1., -.3, -dist);\n"
+		"  }\n"
+		"  else {\n"
+		"    float sum = mix(Sobel(first), Sobel(second), fade);\n"
+		"    finalColor = color * mix(min(.8, sqrt(sum / 160.)), 1., linearstep(-1., -.3, dist));\n"
+		"  }\n"
 		"}\n";
 	
 	shader = Shader(vertexCode, fragmentCode);
@@ -117,6 +131,7 @@ void OutlineShader::Init()
 	
 	glUseProgram(shader.Object());
 	glUniform1i(shader.Uniform("tex"), 0);
+	glUniform1i(shader.Uniform("mask"), 1);
 	glUseProgram(0);
 	
 	// Generate the vertex data for drawing sprites.
@@ -180,6 +195,10 @@ void OutlineShader::Draw(const Sprite *sprite, const Point &pos, const Point &si
 	
 	glUniform4fv(colorI, 1, color.Get());
 	
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, sprite->MaskTexture());
+	
+	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, sprite->Texture(unit.Length() * Screen::Zoom() > 50.));
 	
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);

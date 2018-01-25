@@ -391,3 +391,11 @@ bool Mask::Contains(Point point) const
 	// If the number of intersections is odd, the point is within the mask.
 	return (intersections & 1);
 }
+
+
+
+// Get the outline of this mask.
+const std::vector<Point> &Mask::Outline() const
+{
+	return outline;
+}

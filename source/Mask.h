@@ -57,6 +57,9 @@ public:
 	// Get the maximum distance from the center of this mask.
 	double Radius() const;
 	
+	// Get the outline of this mask.
+	const std::vector<Point> &Outline() const;
+	
 	
 private:
 	double Intersection(Point sA, Point vA) const;

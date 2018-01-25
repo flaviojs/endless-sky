@@ -20,6 +20,8 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #include <SDL2/SDL.h>
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 
 using namespace std;
 
@@ -92,11 +94,89 @@ void Sprite::AddMasks(vector<Mask> &masks)
 
 
 
+// Generate a texture with distances to the mask.
+// The values are normalized based on the length of corner->center.
+void Sprite::GenerateMaskTexture()
+{
+	if(masks.empty())
+		return;
+	
+	int width = static_cast<int>(.5 * Width());
+	int height = static_cast<int>(.5 * Height());
+	Point center = Point(.5 * width, .5 * height);
+	float normalize = 2. / Point(Width(), Height()).Length();
+	
+	vector<GLfloat> data(width * height * masks.size(), numeric_limits<GLfloat>::infinity());
+	GLfloat *ptr = &data[0];
+	for(const Mask &mask : masks)
+	{
+		
+		if(mask.Outline().empty())
+		{
+			ptr += width * height;
+			continue;
+		}
+		
+		for(int y = 0; y < height; ++y)
+			for(int x = 0; x < width; ++x)
+			{
+				// Get the closest distance to the mask outline.
+				Point p = Point(x - center.X(), y - center.Y());
+				float sign = mask.Contains(p, Angle()) ? -1.f : 1.f;
+				float closestSquared = numeric_limits<GLfloat>::infinity();
+				Point prev = mask.Outline().back();
+				for(const Point &cur : mask.Outline())
+				{
+					// Convert to a coordinate system where prev is the origin.
+					Point segment = cur - prev;
+					Point dist = p - prev;
+					// Find out how far along the line the tangent to p intersects.
+					float t = dist.Dot(segment) / segment.LengthSquared();
+					// The cur endpoint will be handled when it is the origin.
+					if(t < 1.f)
+					{
+						// If it is behind the prev endpoint, use that endpoint.
+						if(t > 0.f)
+							dist -= t * segment;
+						// Update closest distance.
+						float distSquared = dist.LengthSquared();
+						if(closestSquared > distSquared)
+							closestSquared = distSquared;
+					}
+					prev = cur;
+				}
+				
+				// Normalize value.
+				*ptr++ = copysign(sqrt(closestSquared), sign) * normalize;
+			}
+	}
+	
+	// Upload the images as a single array texture.
+	glGenTextures(1, &texture[2]);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, texture[2]);
+	
+	// Use linear interpolation and no wrapping.
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	
+	// Upload the image data.
+	glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R16F, // target, mipmap level, internal format,
+		width, height, frames, // width, height, depth,
+		0, GL_RED, GL_FLOAT, &data[0]); // border, input format, data type, data.
+	
+	// Unbind the texture.
+	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+}
+
+
+
 // Free up all textures loaded for this sprite.
 void Sprite::Unload()
 {
-	glDeleteTextures(2, texture);
-	texture[0] = texture[1] = 0;
+	glDeleteTextures(3, texture);
+	texture[0] = texture[1] = texture[2] = 0;
 	
 	masks.clear();
 	width = 0.f;
@@ -151,6 +231,14 @@ uint32_t Sprite::Texture() const
 uint32_t Sprite::Texture(bool isHighDPI) const
 {
 	return (isHighDPI && texture[1]) ? texture[1] : texture[0];
+}
+
+
+
+// Get the index of the texture with signed distances to the mask.
+uint32_t Sprite::MaskTexture() const
+{
+	return texture[2];
 }
 
 

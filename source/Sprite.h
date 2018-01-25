@@ -41,6 +41,9 @@ public:
 	// Move the given masks into this sprite's internal storage. The given
 	// vector will be cleared.
 	void AddMasks(std::vector<Mask> &masks);
+	// Generate a texture with distances to the mask.
+	// The values are normalized based on the length of corner->center.
+	void GenerateMaskTexture();
 	// Free up all textures loaded for this sprite.
 	void Unload();
 	
@@ -55,10 +58,12 @@ public:
 	// shifting of corner to center coordinates.
 	Point Center() const;
 	
-	// Get the texture index, either looking it up based on the Screen's HighDPI
-	// setting or specifying it manually.
+	// Get the texture index, based on whether the screen is high DPI or not.
 	uint32_t Texture() const;
+	// Get the index of the texture for the given high DPI mode.
 	uint32_t Texture(bool isHighDPI) const;
+	// Get the index of the texture with signed distances to the mask.
+	uint32_t MaskTexture() const;
 	// Get the collision mask for the given frame of the animation.
 	const Mask &GetMask(int frame = 0) const;
 	
@@ -66,7 +71,7 @@ public:
 private:
 	std::string name;
 	
-	uint32_t texture[2] = {0, 0};
+	uint32_t texture[3] = {0, 0, 0};
 	std::vector<Mask> masks;
 	
 	float width = 0.f;
