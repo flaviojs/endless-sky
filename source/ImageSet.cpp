@@ -15,7 +15,9 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #include "Mask.h"
 #include "Sprite.h"
 
+#include <cmath>
 #include <iostream>
+#include <limits>
 
 using namespace std;
 
@@ -45,6 +47,64 @@ namespace {
 		// If there is not a blending mode specifier before the numbers, they
 		// are part of the sprite name, not a frame index.
 		return (IsBlend(path[pos]) ? pos : end);
+	}
+	
+	// Generate a texture with distances to the mask.
+	// The values are normalized based on the length of corner->center.
+	void GenerateDistances(ImageBuffer &image, vector<Mask> &masks, vector<float> &distances)
+	{
+		if(masks.empty())
+			return;
+	
+		int width = image.Width() / 2;
+		int height = image.Height() / 2;
+		Point center = Point(.5 * width, .5 * height);
+		float normalize = 2. / Point(image.Width(), image.Height()).Length();
+		
+		distances.assign(width * height * masks.size(), numeric_limits<float>::infinity());
+		float *ptr = &distances[0];
+		for(const Mask &mask : masks)
+		{
+		
+			if(mask.Outline().empty())
+			{
+				ptr += width * height;
+				continue;
+			}
+		
+			for(int y = 0; y < height; ++y)
+				for(int x = 0; x < width; ++x)
+				{
+					// Get the closest distance to the mask outline.
+					Point p = Point(x - center.X(), y - center.Y());
+					float sign = mask.Contains(p, Angle()) ? -1.f : 1.f;
+					float closestSquared = numeric_limits<float>::infinity();
+					Point prev = mask.Outline().back();
+					for(const Point &cur : mask.Outline())
+					{
+						// Convert to a coordinate system where prev is the origin.
+						Point segment = cur - prev;
+						Point dist = p - prev;
+						// Find out how far along the line the tangent to p intersects.
+						float t = dist.Dot(segment) / segment.LengthSquared();
+						// The cur endpoint will be handled when it is the origin.
+						if(t < 1.f)
+						{
+							// If it is behind the prev endpoint, use that endpoint.
+							if(t > 0.f)
+								dist -= t * segment;
+							// Update closest distance.
+							float distSquared = dist.LengthSquared();
+							if(closestSquared > distSquared)
+								closestSquared = distSquared;
+						}
+						prev = cur;
+					}
+				
+					// Normalize value.
+					*ptr++ = copysign(sqrt(closestSquared), sign) * normalize;
+				}
+		}
 	}
 }
 
@@ -212,6 +272,8 @@ void ImageSet::Load()
 	// is definitive, don't load any frames beyond the size of the 1x list.
 	for(size_t i = 0; i < frames && i < paths[1].size(); ++i)
 		buffer[1].Read(paths[1][i], i);
+	// Now generate signed distances.
+	GenerateDistances(buffer[0], masks, distances);
 }
 
 
@@ -225,5 +287,5 @@ void ImageSet::Upload(Sprite *sprite)
 	sprite->AddFrames(buffer[0], false);
 	sprite->AddFrames(buffer[1], true);
 	sprite->AddMasks(masks);
-	sprite->GenerateMaskTexture();
+	sprite->AddMaskTexture(distances);
 }

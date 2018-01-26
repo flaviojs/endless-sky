@@ -20,8 +20,6 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #include <SDL2/SDL.h>
 
 #include <algorithm>
-#include <cmath>
-#include <limits>
 
 using namespace std;
 
@@ -96,60 +94,10 @@ void Sprite::AddMasks(vector<Mask> &masks)
 
 // Generate a texture with distances to the mask.
 // The values are normalized based on the length of corner->center.
-void Sprite::GenerateMaskTexture()
+void Sprite::AddMaskTexture(vector<float> &distances)
 {
 	if(masks.empty())
 		return;
-	
-	int width = static_cast<int>(.5 * Width());
-	int height = static_cast<int>(.5 * Height());
-	Point center = Point(.5 * width, .5 * height);
-	float normalize = 2. / Point(Width(), Height()).Length();
-	
-	vector<GLfloat> data(width * height * masks.size(), numeric_limits<GLfloat>::infinity());
-	GLfloat *ptr = &data[0];
-	for(const Mask &mask : masks)
-	{
-		
-		if(mask.Outline().empty())
-		{
-			ptr += width * height;
-			continue;
-		}
-		
-		for(int y = 0; y < height; ++y)
-			for(int x = 0; x < width; ++x)
-			{
-				// Get the closest distance to the mask outline.
-				Point p = Point(x - center.X(), y - center.Y());
-				float sign = mask.Contains(p, Angle()) ? -1.f : 1.f;
-				float closestSquared = numeric_limits<GLfloat>::infinity();
-				Point prev = mask.Outline().back();
-				for(const Point &cur : mask.Outline())
-				{
-					// Convert to a coordinate system where prev is the origin.
-					Point segment = cur - prev;
-					Point dist = p - prev;
-					// Find out how far along the line the tangent to p intersects.
-					float t = dist.Dot(segment) / segment.LengthSquared();
-					// The cur endpoint will be handled when it is the origin.
-					if(t < 1.f)
-					{
-						// If it is behind the prev endpoint, use that endpoint.
-						if(t > 0.f)
-							dist -= t * segment;
-						// Update closest distance.
-						float distSquared = dist.LengthSquared();
-						if(closestSquared > distSquared)
-							closestSquared = distSquared;
-					}
-					prev = cur;
-				}
-				
-				// Normalize value.
-				*ptr++ = copysign(sqrt(closestSquared), sign) * normalize;
-			}
-	}
 	
 	// Upload the images as a single array texture.
 	glGenTextures(1, &texture[2]);
@@ -163,11 +111,13 @@ void Sprite::GenerateMaskTexture()
 	
 	// Upload the image data.
 	glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R16F, // target, mipmap level, internal format,
-		width, height, frames, // width, height, depth,
-		0, GL_RED, GL_FLOAT, &data[0]); // border, input format, data type, data.
+		static_cast<int>(.5 * width), static_cast<int>(.5 * height), frames, // width, height, depth,
+		0, GL_RED, GL_FLOAT, &distances[0]); // border, input format, data type, data.
 	
 	// Unbind the texture.
 	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+	
+	distances.clear();
 }
 
 

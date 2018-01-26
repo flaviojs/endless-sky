@@ -75,6 +75,7 @@ private:
 	// Data loaded from the images:
 	ImageBuffer buffer[2];
 	std::vector<Mask> masks;
+	std::vector<float> distances;
 };
 
 

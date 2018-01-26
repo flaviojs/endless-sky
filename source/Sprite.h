@@ -41,9 +41,10 @@ public:
 	// Move the given masks into this sprite's internal storage. The given
 	// vector will be cleared.
 	void AddMasks(std::vector<Mask> &masks);
-	// Generate a texture with distances to the mask.
+	// Add a texture with distances to the mask.
 	// The values are normalized based on the length of corner->center.
-	void GenerateMaskTexture();
+	// The given vector will be cleared.
+	void AddMaskTexture(std::vector<float> &distances);
 	// Free up all textures loaded for this sprite.
 	void Unload();
 	
