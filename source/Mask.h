@@ -58,7 +58,7 @@ public:
 	double Radius() const;
 	
 	// Get the outline of this mask.
-	const std::vector<Point> &Outline() const;
+	const std::vector<std::vector<Point>> &Outlines() const;
 	
 	
 private:
@@ -67,7 +67,7 @@ private:
 	
 	
 private:
-	std::vector<Point> outline;
+	std::vector<std::vector<Point>> outlines;
 	double radius;
 };
 

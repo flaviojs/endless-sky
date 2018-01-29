@@ -58,15 +58,15 @@ namespace {
 	
 		int width = image.Width() / 2;
 		int height = image.Height() / 2;
-		Point center = Point(.5 * width, .5 * height);
 		float normalize = 2. / Point(image.Width(), image.Height()).Length();
+		Point off = Point(.5 * width - .5, .5 * height - .5);
 		
 		distances.assign(width * height * masks.size(), numeric_limits<float>::infinity());
 		float *ptr = &distances[0];
 		for(const Mask &mask : masks)
 		{
 		
-			if(mask.Outline().empty())
+			if(!mask.IsLoaded())
 			{
 				ptr += width * height;
 				continue;
@@ -76,29 +76,32 @@ namespace {
 				for(int x = 0; x < width; ++x)
 				{
 					// Get the closest distance to the mask outline.
-					Point p = Point(x - center.X(), y - center.Y());
+					Point p = Point(x - off.X(), y - off.Y());
 					float sign = mask.Contains(p, Angle()) ? -1.f : 1.f;
 					float closestSquared = numeric_limits<float>::infinity();
-					Point prev = mask.Outline().back();
-					for(const Point &cur : mask.Outline())
+					for(const vector<Point> &outline : mask.Outlines())
 					{
-						// Convert to a coordinate system where prev is the origin.
-						Point segment = cur - prev;
-						Point dist = p - prev;
-						// Find out how far along the line the tangent to p intersects.
-						float t = dist.Dot(segment) / segment.LengthSquared();
-						// The cur endpoint will be handled when it is the origin.
-						if(t < 1.f)
+						Point prev = outline.back();
+						for(const Point &cur : outline)
 						{
-							// If it is behind the prev endpoint, use that endpoint.
-							if(t > 0.f)
-								dist -= t * segment;
-							// Update closest distance.
-							float distSquared = dist.LengthSquared();
-							if(closestSquared > distSquared)
-								closestSquared = distSquared;
+							// Convert to a coordinate system where prev is the origin.
+							Point segment = cur - prev;
+							Point dist = p - prev;
+							// Find out how far along the line the tangent to p intersects.
+							float t = dist.Dot(segment) / segment.LengthSquared();
+							// The cur endpoint will be handled when it is the origin.
+							if(t < 1.f)
+							{
+								// If it is behind the prev endpoint, use that endpoint.
+								if(t > 0.f)
+									dist -= t * segment;
+								// Update closest distance.
+								float distSquared = dist.LengthSquared();
+								if(closestSquared > distSquared)
+									closestSquared = distSquared;
+							}
+							prev = cur;
 						}
-						prev = cur;
 					}
 				
 					// Normalize value.
